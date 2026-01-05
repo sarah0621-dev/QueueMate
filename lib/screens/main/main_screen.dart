@@ -10,7 +10,7 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  final String userName = 'Sohyun';
+  final String userName = 'Sarah';
   final String currentService = 'Sydney Service NSW';
   final int queuePosition = 12;
   final int estimatedWaitMinutes = 18;

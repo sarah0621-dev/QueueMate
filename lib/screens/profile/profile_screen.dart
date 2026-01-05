@@ -52,7 +52,7 @@ class ProfileScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'Sohyun Bae',
+                    'Sarah',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -61,7 +61,7 @@ class ProfileScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '200027775@studnents.koi.au',
+                    'koi@students.edu.koi.au',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.grey[600],
