@@ -1,6 +1,9 @@
-# queuemate
+# Queuemate
 
-A new Flutter project.
+User Experience and Mobile Application Development Subject Project
+
+## Figma
+https://www.figma.com/design/9uAKow8JQ0jcg28iY967Hi/QueueMate?node-id=74-400&t=TGTYvj1LeuR4FJkb-1
 
 ## Getting Started
 
