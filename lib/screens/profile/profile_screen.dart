@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../auth/welcome_screen.dart';
+import '../../services/local_store.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -217,9 +219,24 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
             TextButton(
-              onPressed: () {
-                // TODO: Implement logout logic
-                Navigator.pop(context);
+              onPressed: () async {
+                // Clear all user data
+                await LocalStore.clearAllData();
+
+                // Close dialog
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
+
+                // Navigate to Welcome screen and remove all previous routes
+                if (context.mounted) {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (context) => const WelcomeScreen(),
+                    ),
+                    (route) => false,
+                  );
+                }
               },
               child: const Text(
                 'Log Out',

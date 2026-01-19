@@ -8,7 +8,6 @@ Future<void> main() async {
 
   // Open Hive box for QueueMate app data
   await Hive.openBox('queueMate');
-
   runApp(const QueueMateApp());
 }
 

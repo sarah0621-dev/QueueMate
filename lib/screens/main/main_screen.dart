@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:queuemate/services/local_store.dart';
 import '../queue/queue_details_screen.dart';
 import '../profile/profile_screen.dart';
 
@@ -10,11 +11,43 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  final String userName = 'Sarah';
-  final String currentService = 'Sydney Service NSW';
-  final int queuePosition = 12;
-  final int estimatedWaitMinutes = 18;
-  final String queueStatus = 'Waiting';
+  Map<String, dynamic>? _activeQueue;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initQueueData();
+  }
+
+  Future<void> _initQueueData() async {
+    // bring the queue from default data
+    final activeQueue = LocalStore.getActiveQueue();
+
+    // if don't have, set default data
+    if (activeQueue == null) {
+      final defaultQueue = {
+        'userName': 'Sarah',
+        'currentService': 'Sydney Service NSW',
+        'queuePosition': 12,
+        'estimatedWaitMinutes': 18,
+        'queueStatus': 'Waiting',
+        'createdAt': DateTime.now().toIso8601String(),
+      };
+      await LocalStore.saveActiveQueue(defaultQueue);
+      // save state
+      setState(() {
+        _activeQueue = defaultQueue;
+        _isLoading = false;
+      });
+    } else {
+      // save state if data exist
+      setState(() {
+        _activeQueue = activeQueue;
+        _isLoading = false;
+      });
+    }
+  }
 
   final List<Map<String, dynamic>> nearbyServices = [
     {
@@ -42,13 +75,224 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
+  Future<void> _joinQueue(String serviceName, int waitTime) async {
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text('Join Queue'),
+        content: Text('Join queue at $serviceName?\n\nEstimated wait: $waitTime mins'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF5B5FC7),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Join'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      // Create new queue data
+      final newQueue = {
+        'userName': LocalStore.getUserName() ?? 'User',
+        'currentService': serviceName,
+        'queuePosition': (waitTime ~/ 3) + 1, // Calculate position based on wait time
+        'estimatedWaitMinutes': waitTime,
+        'queueStatus': 'Waiting',
+        'createdAt': DateTime.now().toIso8601String(),
+      };
+
+      // Save to Hive
+      await LocalStore.saveActiveQueue(newQueue);
+
+      // Update UI
+      setState(() {
+        _activeQueue = newQueue;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Loading state
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    // No queue state
+    if (_activeQueue == null) {
+      return Scaffold(
+        backgroundColor: Colors.grey[50],
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                color: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'QueueMate',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${_getGreeting()}, ${LocalStore.getUserName() ?? "User"} 👋',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ProfileScreen(),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'S',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Empty state
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.inbox_outlined, size: 80, color: Colors.grey[400]),
+                      const SizedBox(height: 16),
+                      Text(
+                        'You are not in any queue',
+                        style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton(
+                        onPressed: () {
+                          // Show bottom sheet with nearby services
+                          showModalBottomSheet(
+                            context: context,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                            ),
+                            builder: (context) => Container(
+                              padding: const EdgeInsets.all(20),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Select a Service',
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  ...nearbyServices.map((service) => ListTile(
+                                    leading: const Icon(Icons.location_pin, color: Colors.red),
+                                    title: Text(service['name'] as String),
+                                    subtitle: Text('Wait: ${service['waitTime']} mins'),
+                                    onTap: () {
+                                      Navigator.pop(context);
+                                      _joinQueue(
+                                        service['name'] as String,
+                                        service['waitTime'] as int,
+                                      );
+                                    },
+                                  )),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF5B5FC7),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text('Join a Queue'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Queue active state - extract data
+    final userName = _activeQueue!['userName'] as String;
+    final currentService = _activeQueue!['currentService'] as String;
+    final queuePosition = _activeQueue!['queuePosition'] as int;
+    final estimatedWaitMinutes = _activeQueue!['estimatedWaitMinutes'] as int;
+    final queueStatus = _activeQueue!['queueStatus'] as String;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       body: SafeArea(
         child: Column(
           children: [
+            // Header
             Container(
               width: double.infinity,
               color: Colors.white,
@@ -109,6 +353,7 @@ class _MainScreenState extends State<MainScreen> {
                 ],
               ),
             ),
+            // Queue content
             Expanded(
               child: SingleChildScrollView(
                 child: Padding(
@@ -116,6 +361,7 @@ class _MainScreenState extends State<MainScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Queue info card
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(24),
@@ -233,8 +479,12 @@ class _MainScreenState extends State<MainScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: OutlinedButton(
-                                    onPressed: () {
-                                      // TODO: Leave queue
+                                    onPressed: () async {
+                                      // Leave queue logic
+                                      await LocalStore.clearActiveQueue();
+                                      setState(() {
+                                        _activeQueue = null;
+                                      });
                                     },
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: Colors.grey[700],
@@ -325,53 +575,61 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildServiceCard(String name, int waitTime) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.location_pin,
-                color: Colors.red,
-                size: 18,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black,
+    return GestureDetector(
+      onTap: () => _joinQueue(name, waitTime),
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.location_pin,
+                  color: Colors.red,
+                  size: 18,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Estimated Wait : $waitTime mins',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
+                // Add arrow icon to indicate clickable
+                Icon(
+                  Icons.chevron_right,
+                  color: Colors.grey[400],
+                ),
+              ],
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              'Estimated Wait : $waitTime mins',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
